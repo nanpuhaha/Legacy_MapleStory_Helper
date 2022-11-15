@@ -22,10 +22,7 @@ class MapleScreenCapturer:
 
     def ms_get_screen_hwnd(self):
         window_hwnd = win32gui.FindWindow(0, MAPLESTORY_WINDOW_TITLE)
-        if not window_hwnd:
-            return 0
-        else:
-            return window_hwnd
+        return window_hwnd or 0
 
     def ms_get_screen_rect(self, hwnd):
         """
@@ -46,12 +43,11 @@ class MapleScreenCapturer:
               ctypes.byref(rect),
               ctypes.sizeof(rect)
               )
-            size = (rect.left, rect.top, rect.right, rect.bottom)
+            return rect.left, rect.top, rect.right, rect.bottom
         else:
             if not hwnd:
                 hwnd = self.ms_get_screen_hwnd()
-            size = win32gui.GetWindowRect(hwnd)
-        return size  # returns x1, y1, x2, y2
+            return win32gui.GetWindowRect(hwnd)
 
     def capture(self, set_focus=True, hwnd=None, rect=None):
         """Returns Maplestory window screenshot handle(not np.array!)
@@ -115,11 +111,26 @@ class StaticImageProcessor:
             raise Exception("img_handle must reference an MapleScreenCapturer class!!")
         # Pre-processing
         # Read the template
-        self.template1 = cv2.imread('{}\\Git_Folder\\BotMaple\\CS_1280x920.JPG'.format(str(Path.home())), 0)
-        self.template2 = cv2.imread('{}\\Git_Folder\\BotMaple\\CS_1024x768.JPG'.format(str(Path.home())), 0)
-        self.template3 = cv2.imread('{}\\Git_Folder\\BotMaple\\CS_800x600.JPG'.format(str(Path.home())), 0)
-        self.confirm_box1 = cv2.imread('{}\\Git_Folder\\BotMaple\\ConfirmBox_1280x920.JPG'.format(str(Path.home())), 0)
-        self.confirm_box2 = cv2.imread('{}\\Git_Folder\\BotMaple\\ConfirmBox_1024x768.JPG'.format(str(Path.home())), 0)
+        self.template1 = cv2.imread(
+            f'{str(Path.home())}\\Git_Folder\\BotMaple\\CS_1280x920.JPG', 0
+        )
+
+        self.template2 = cv2.imread(
+            f'{str(Path.home())}\\Git_Folder\\BotMaple\\CS_1024x768.JPG', 0
+        )
+
+        self.template3 = cv2.imread(
+            f'{str(Path.home())}\\Git_Folder\\BotMaple\\CS_800x600.JPG', 0
+        )
+
+        self.confirm_box1 = cv2.imread(
+            f'{str(Path.home())}\\Git_Folder\\BotMaple\\ConfirmBox_1280x920.JPG', 0
+        )
+
+        self.confirm_box2 = cv2.imread(
+            f'{str(Path.home())}\\Git_Folder\\BotMaple\\ConfirmBox_1024x768.JPG', 0
+        )
+
         # Pre-processing
         self.img_handle = img_handle
         self.bgr_img = None
@@ -206,7 +217,11 @@ class StaticImageProcessor:
             biggest_contour = max(contours, key = cv2.contourArea)
             if cv2.contourArea(biggest_contour) >= 100 and cv2.contourArea(biggest_contour) >= self.minimap_area and cv2.contourArea(biggest_contour) <= self.maximum_minimap_area:
                 minimap_coords = cv2.boundingRect(biggest_contour)
-                if minimap_coords[0] > 0 and minimap_coords[1] > 0 and minimap_coords[2] > 0 and minimap_coords[2] > 0:
+                if (
+                    minimap_coords[0] > 0
+                    and minimap_coords[1] > 0
+                    and minimap_coords[2] > 0
+                ):
                     contour_area = cv2.contourArea(biggest_contour)
                     self.minimap_area = contour_area
                     minimap_coords = [minimap_coords[0], minimap_coords[1], minimap_coords[2], minimap_coords[3]]
@@ -214,8 +229,6 @@ class StaticImageProcessor:
                     minimap_coords[1] += self.default_minimap_scan_area[1]
                     self.minimap_rect = minimap_coords
                     return minimap_coords
-                else:
-                    pass
         return 0
 
     def reset_minimap_area(self):
@@ -235,10 +248,10 @@ class StaticImageProcessor:
         :param rect: [x,y,w,h] bounding box of minimap in MapleStory screen. Call self.get_minimap_rect to obtain
         :return: x,y coordinate of player relative to ms_screen_rect if found, else 0
         """
-        if not rect and not self.minimap_rect:
-            rect = self.get_minimap_rect()
-        else:
+        if rect or self.minimap_rect:
             rect = self.minimap_rect
+        else:
+            rect = self.get_minimap_rect()
         assert rect, "Invalid minimap coordinates"
         cropped = self.rgb_img[rect[1]:rect[1]+rect[3], rect[0]:rect[0]+rect[2]]
         # cv2.imshow("Minimap", cropped)
@@ -302,10 +315,10 @@ class StaticImageProcessor:
         :param rect: [x,y,w,h] bounding box of minimap. Call self.get_minimap_rect
         :return: x,y of rune minimap coordinates if found, else 0
         """
-        if not rect and not self.minimap_rect:
-            rect = self.get_minimap_rect()
-        else:
+        if rect or self.minimap_rect:
             rect = self.minimap_rect
+        else:
+            rect = self.get_minimap_rect()
         assert rect, "Invalid minimap coordinates"
         cropped = self.bgr_img[rect[1]:rect[1] + rect[3], rect[0]:rect[0] + rect[2]]
         mask = cv2.inRange(cropped, self.lower_rune_marker, self.upper_rune_marker)
@@ -315,11 +328,14 @@ class StaticImageProcessor:
             avg_y = 0
             totalpoints = 0
             for coord in td:
-                nearest_points = 0  # Points which are close to coord pixel
-                for ref_coord in td:
-                    # Calculate the range between every single pixel
-                    if math.sqrt(abs(ref_coord[0] - coord[0]) ** 2 + abs(ref_coord[1] - coord[1]) ** 2) <= 6:
-                        nearest_points += 1
+                nearest_points = sum(
+                    math.sqrt(
+                        abs(ref_coord[0] - coord[0]) ** 2
+                        + abs(ref_coord[1] - coord[1]) ** 2
+                    )
+                    <= 6
+                    for ref_coord in td
+                )
 
                 if nearest_points >= 20 and nearest_points <= 25:
                     avg_y += coord[0]
@@ -363,9 +379,7 @@ class StaticImageProcessor:
 
             # return unique values and count of each unique value
             unique, counts = np.unique(im_np[10], return_counts=True)
-            percent = counts[0] / (x_end[resOption] - x_start[resOption]) * 100
-            # print("Percent HP: ", percent)
-            return percent
+            return counts[0] / (x_end[resOption] - x_start[resOption]) * 100
         except:
             return percent
 
@@ -391,26 +405,21 @@ class StaticImageProcessor:
             im_np = self.gray_img[y_start[resOption]:y_end[resOption],
                                     x_start[resOption]:x_end[resOption]]
 
-            # pick an array to analyze current hp and full hp
-            # print("MP: ", im_np[10])
-            # print("Auto MP. Random percent: {}. Res Option: {}".format(percent, resOption))
-            # cv2.imshow("MP", im_np)
-            # cv2.waitKey()
-
-            item = 0
-
             # 178 is empty - 1024x768
             # 134 is empty - 1280x960
             empty = [175, 130]
-            for x in range(len(im_np[10])):
-                if im_np[10][x] > empty[resOption]:
-                    item = x
-                    break
+            item = next(
+                (
+                    x
+                    for x in range(len(im_np[10]))
+                    if im_np[10][x] > empty[resOption]
+                ),
+                0,
+            )
+
             # print("Percent MP: ", item / (x_end[resOption] - x_start[resOption]) * 100)
             percent = item / (x_end[resOption] - x_start[resOption]) * 100
-            if percent == 0:
-                return 100
-            return percent
+            return 100 if percent == 0 else percent
         except:
             return percent
 
@@ -449,7 +458,6 @@ class StaticImageProcessor:
 
         except Exception as e:
             print("Check for CS scsroll exception: ", e)
-            pass
         return False
 
     def is_exist_GM_dungeon(self, rect=None):
@@ -504,11 +512,7 @@ class StaticImageProcessor:
         # cv2.imshow("Mask for Other player", np.array(mask))
         # cv2.waitKey()
         td = np.transpose(np.where(mask > 0)).tolist()
-        if len(td) > 10 and len(td) < 60:
-            # cv2.imshow("Mask for Other player", np.array(mask))
-            # cv2.waitKey()
-            return True
-        return False
+        return len(td) > 10 and len(td) < 60
 
     def is_exist_GM_regular(self):
         return False
@@ -543,7 +547,6 @@ class StaticImageProcessor:
 
         except Exception as e:
             print("Check for Confirm Box exception: ", e)
-            pass
         return False
 
     def display_image_attr(self):
@@ -559,7 +562,7 @@ if __name__ == "__main__":
 
     static = StaticImageProcessor(dx)
 
-    for i in range(10):
+    for _ in range(10):
         static.update_image()
         print(static.is_exist_confirm_box_sell_equipment())
 

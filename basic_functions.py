@@ -26,10 +26,7 @@ key_codes = {'Insert': '{VK_INSERT}',
 
 # Random helper functions
 def toggle(boolean_value):
-    if boolean_value == 1:
-        boolean_value = 0
-    else:
-        boolean_value = 1
+    boolean_value = 0 if boolean_value == 1 else 1
     return boolean_value
 
 # General customized functions
@@ -43,8 +40,8 @@ def auto_attack(assign_slot):
     send_keys(assign_slot)
 
 def pickup(assign_slot):
-    send_keys('{} down'.format(assign_slot))
-    send_keys('{} up'.format(assign_slot))
+    send_keys(f'{assign_slot} down')
+    send_keys(f'{assign_slot} up')
 
 def buff(key_code):
     send_keys(key_code)
@@ -192,8 +189,10 @@ def send_sms(message_to_send, phone_number):
     token = "a1b9b4b9d387cf79a0945f6be5314160"
     # Need to store it somewhere else
     client = Client(account, token)
-    message = client.messages.create(to="+{}".format(phone_number), from_="+12058399940",
-                                     body=message_to_send)
+    message = client.messages.create(
+        to=f"+{phone_number}", from_="+12058399940", body=message_to_send
+    )
+
     return
 
 def findHP():
